@@ -1,20 +1,26 @@
 #ifndef SYMBOL_CONVERSION_H
 #define SYMBOL_CONVERSION_H
 
-#include <complex.h>
+#include "dsp_utils.h"
+#include <string>
+#include <vector>
 
-char* pam_to_letters(const int* symbols_PAM, int N);
+// Convert text to PAM symbols (each char -> 4 PAM symbols)
+std::vector<int> letters_to_pam(const std::string& text);
 
-int* letters_to_pam(const char* text, int* out_len);
+// Convert PAM symbols to text
+std::string pam_to_letters(const std::vector<int>& symbols_PAM);
 
-int* qam_to_pam(const double complex* symbols_QAM, int N);
+// PAM to QAM4_2 mapping: -3->(-3-3j), -1->(-1-1j), 1->(1+1j), 3->(3+3j)
+CVec pam_to_qam4_2(const std::vector<int>& symbols_PAM);
 
-double complex* pam_to_qam(const int* symbols_PAM, int N);
+// QAM4_2 to PAM mapping (reverse)
+std::vector<int> qam4_2_to_pam(const CVec& symbols_QAM4_2);
 
-int* qam4_2_to_pam(const double complex* symbols_QAM4_2, int N);
+// PAM to QAM mapping: -3->(-1-1j), -1->(-1+1j), 1->(1-1j), 3->(1+1j)
+CVec pam_to_qam(const std::vector<int>& symbols_PAM);
 
-double complex* pam_to_qam4_2(const int* symbols_PAM, int N);
-
-double* pam(int len, int M, double var);
+// QAM to PAM mapping (reverse)
+std::vector<int> qam_to_pam(const CVec& symbols_QAM);
 
 #endif

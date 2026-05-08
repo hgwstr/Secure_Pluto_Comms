@@ -1,82 +1,57 @@
-#include "frame_generator_rx.h"
-#include "barker_generator.h"
-#include "symbol_conversion.h"
+#include "../include/frame_generator_rx.h"
+#include "../include/barker_generator.h"
+#include "../include/symbol_conversion.h"
+#include "../include/viterbi_decoder.h"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
+#include <complex>
+#include "../include/dsp_utils.h" 
 
-std::string frame_generator_RX(const CVec& quantized_symbols,
-                                const CVec& correlation_indices,
-                                const CVec& correlation_values,
-                                int single_frame_length,
-                                const std::string& header,
-                                const std::string& modulation_type) {
-    CVec header_vec = barker_generator(header, modulation_type);
-    int header_len = static_cast<int>(header_vec.size());
-    int frame_len = single_frame_length;
-    std::string mod_type = modulation_type;
-    std::string my_msg;
+std::string frame_generator_RX(const CVec& quantized_symbols, 
+                               const std::pair<CVec, CVec>& correlation_data,
+                               int single_frame_length, 
+                               const std::string& modulation_type,
+                               const std::string& header) {
+    std::string full_decoded_msg = "";
+    ViterbiDecoder decoder;
+    
+    const CVec& correlation_indices = correlation_data.first;
+    const CVec& correlation_values = correlation_data.second;
 
-    int len_of_index_array = static_cast<int>(correlation_indices.size());
+    for (size_t idx = 0; idx < correlation_indices.size(); ++idx) {
+        int start_idx = static_cast<int>(correlation_indices[idx].real());
+        
+        if (start_idx + single_frame_length > quantized_symbols.size()) continue;
 
-    for (int idx = 0; idx < len_of_index_array; ++idx) {
-        int index_real = static_cast<int>(correlation_indices[idx].real());
-        int index_imag = static_cast<int>(correlation_indices[idx].imag());
-        double value_real = (correlation_values[idx].real() >= 0) ? 1.0 : -1.0;
-        double value_imag = (correlation_values[idx].imag() >= 0) ? 1.0 : -1.0;
-        // Handle zero: sign(0) = 0 in numpy
-        if (correlation_values[idx].real() == 0.0) value_real = 0.0;
-        if (correlation_values[idx].imag() == 0.0) value_imag = 0.0;
+        CVec frame_symbols(single_frame_length);
+        double phase_corr_real = (correlation_values[idx].real() >= 0)? 1.0 : -1.0;
+        double phase_corr_imag = (correlation_values[idx].imag() >= 0)? 1.0 : -1.0;
 
-        int starting_index_real = index_real + 1;
-        int starting_index_imag = index_imag + 1;
-        int end_index_real, end_index_imag;
+        for (int i = 0; i < single_frame_length; ++i) {
+            double re = quantized_symbols[start_idx + i].real() * phase_corr_real;
+            double im = quantized_symbols[start_idx + i].imag() * phase_corr_imag;
+            frame_symbols[i] = std::complex<double>(re, im);
+        }
 
-        if (idx != len_of_index_array - 1) {
-            int next_index_real = static_cast<int>(correlation_indices[idx + 1].real());
-            int next_index_imag = static_cast<int>(correlation_indices[idx + 1].imag());
-            end_index_real = next_index_real - header_len + 1;
-            end_index_imag = next_index_imag - header_len + 1;
+        std::vector<int> pam_levels;
+        if (modulation_type == "QAM4_2") {
+            pam_levels = qam4_2_to_pam(frame_symbols);
         } else {
-            end_index_real = starting_index_real + frame_len - header_len;
-            end_index_imag = starting_index_imag + frame_len - header_len;
+            pam_levels = qam_to_pam(frame_symbols);
         }
 
-        // Bounds checking
-        int qs_len = static_cast<int>(quantized_symbols.size());
-        if (end_index_real > qs_len) end_index_real = qs_len;
-        if (end_index_imag > qs_len) end_index_imag = qs_len;
-        if (starting_index_real >= qs_len || starting_index_imag >= qs_len) continue;
-
-        // Extract symbols
-        int sym_count_real = end_index_real - starting_index_real;
-        int sym_count_imag = end_index_imag - starting_index_imag;
-        int sym_count = std::min(sym_count_real, sym_count_imag);
-        if (sym_count <= 0) continue;
-
-        CVec symbols(sym_count);
-        for (int i = 0; i < sym_count; ++i) {
-            double sr = quantized_symbols[starting_index_real + i].real() * value_real;
-            double si = quantized_symbols[starting_index_imag + i].imag() * value_imag;
-            symbols[i] = Complex(sr, si);
+        std::vector<int> bits_to_decode;
+        for (int val : pam_levels) {
+            int quaternary = (val + 3) / 2;
+            bits_to_decode.push_back((quaternary >> 1) & 1);
+            bits_to_decode.push_back(quaternary & 1);
         }
 
-        // Convert to message
-        std::string frame_msg;
-        if (mod_type == "4QAM") {
-            frame_msg = pam_to_letters(qam_to_pam(symbols));
-        } else if (mod_type == "QAM4_2") {
-            frame_msg = pam_to_letters(qam4_2_to_pam(symbols));
-        } else {
-            // Direct PAM (real parts only)
-            std::vector<int> pam(sym_count);
-            for (int i = 0; i < sym_count; ++i) {
-                pam[i] = static_cast<int>(symbols[i].real());
-            }
-            frame_msg = pam_to_letters(pam);
-        }
+        std::string raw_frame_text = decoder.decode(bits_to_decode);
 
-        my_msg += frame_msg;
+        full_decoded_msg += raw_frame_text;
     }
 
-    return my_msg;
+    return full_decoded_msg;
 }

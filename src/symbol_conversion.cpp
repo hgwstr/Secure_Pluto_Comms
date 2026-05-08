@@ -1,9 +1,12 @@
-#include "symbol_conversion.h"
+#include "../include/symbol_conversion.h"
 #include <cmath>
 #include <sstream>
 #include <algorithm>
 
-// Helper: convert integer to base-4 string representation, padded to 4 chars
+const int G1 = 0x79;
+const int G2 = 0x5B;
+const int K = 7;
+
 static std::string to_base4(int val) {
     if (val == 0) return "0000";
     std::string result;
@@ -12,7 +15,6 @@ static std::string to_base4(int val) {
         val /= 4;
     }
     std::reverse(result.begin(), result.end());
-    // Pad to 4 digits
     while (result.size() < 4) {
         result = "0" + result;
     }
@@ -20,43 +22,36 @@ static std::string to_base4(int val) {
 }
 
 std::vector<int> letters_to_pam(const std::string& text) {
-    std::string msg;
-    for (char c : text) {
-        int ord_c = static_cast<int>(static_cast<unsigned char>(c));
-        std::string letter = to_base4(ord_c);
-        msg += letter;
-    }
+    std::vector<int> encoded_bits;
+    unsigned int shift_register = 0;
 
-    std::vector<int> symbols_PAM(msg.size());
-    for (size_t i = 0; i < msg.size(); ++i) {
-        symbols_PAM[i] = 2 * static_cast<int>(msg[i]) - 99;
-    }
-    return symbols_PAM;
-}
-
-std::string pam_to_letters(const std::vector<int>& symbols_PAM) {
-    int N = static_cast<int>(symbols_PAM.size());
-    int off = N % 4;
-    int use_len = (off != 0) ? N - off : N;
-
-    std::string my_4base;
-    std::string converted_string;
-
-    for (int i = 0; i < use_len; ++i) {
-        int symbol = symbols_PAM[i];
-        char ch = static_cast<char>((symbol + 99) / 2);
-        my_4base += ch;
-        if (my_4base.size() == 4) {
-            // Convert base-4 string to character
-            int val = 0;
-            for (char d : my_4base) {
-                val = val * 4 + (d - '0');
+    for (unsigned char c : text) {
+        for (int i = 7; i >= 0; --i) {
+            int bit = (c >> i) & 1;
+            
+            shift_register = (shift_register << 1) | bit;
+            
+            int out1 = 0, out2 = 0;
+            for (int j = 0; j < K; ++j) {
+                if ((G1 >> j) & 1) out1 ^= (shift_register >> j) & 1;
+                if ((G2 >> j) & 1) out2 ^= (shift_register >> j) & 1;
             }
-            converted_string += static_cast<char>(val);
-            my_4base.clear();
+            
+            encoded_bits.push_back(out1);
+            encoded_bits.push_back(out2);
+            
+            shift_register &= 0x3F; 
         }
     }
-    return converted_string;
+
+    std::vector<int> symbols_PAM;
+    for (size_t i = 0; i < encoded_bits.size(); i += 2) {
+        int quaternary = (encoded_bits[i] << 1) | encoded_bits[i+1];
+        
+        symbols_PAM.push_back(2 * quaternary - 3);
+    }
+
+    return symbols_PAM;
 }
 
 CVec pam_to_qam4_2(const std::vector<int>& symbols_PAM) {

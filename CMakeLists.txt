@@ -21,6 +21,7 @@ add_library(pluto_dsp STATIC
     src/costas_loop.cpp
     src/clock_recovery.cpp
     src/frame_generator_tx.cpp
+    src/viterbi_decoder.cpp
     src/signal_generator_tx.cpp
     src/frame_generator_rx.cpp
     src/message_handler.cpp

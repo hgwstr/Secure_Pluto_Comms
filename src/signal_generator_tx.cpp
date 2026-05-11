@@ -64,5 +64,8 @@ CVec signal_generator(const CVec& symbol_frames,
         }
     }
 
+    if (static_cast<int>(my_signal.size()) > buffer_len_TX)
+    my_signal.resize(buffer_len_TX);
+
     return my_signal;
 }

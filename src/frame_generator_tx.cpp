@@ -32,23 +32,22 @@ TxFrameResult frame_generator_TX(int data_length,
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890";
 
-    // Helper lambda to format hex ID like Python's f'{i:#04X}'
-    // Python: f'{0:#04X}' = '0X00', f'{1:#04X}' = '0X01', f'{10:#04X}' = '0X0A'
+    // Форматирование ID как в Python: f'{i:#04X}'
     auto hex_id = [](int val) -> std::string {
         std::ostringstream oss;
         oss << "0X" << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << val;
         return oss.str();
     };
 
-    // Helper to convert string data to symbols
+    // Преобразование строки в символы
     auto to_symbols = [&](const std::string& data) -> CVec {
         std::vector<int> pam = letters_to_pam(data);
-        if (mod_type == "4QAM") {
-            return pam_to_qam(pam);
-        } else if (mod_type == "QAM4_2") {
+        if (mod_type == "QAM4_2") {                     // ИСПРАВЛЕНО: было "4QAM"
             return pam_to_qam4_2(pam);
+        } else if (mod_type == "4QAM") {                // оставлено для совместимости, если понадобится
+            return pam_to_qam(pam);
         } else {
-            // Return PAM as complex with zero imaginary
+            // Обычная PAM
             CVec result(pam.size());
             for (size_t i = 0; i < pam.size(); ++i) {
                 result[i] = Complex(static_cast<double>(pam[i]), 0.0);
@@ -69,7 +68,6 @@ TxFrameResult frame_generator_TX(int data_length,
                 data = hex_id(i) +
                        msg.substr(i * data_length, remainder) +
                        hex_id(i);
-                // Pad to data_length_with_id
                 for (int j = 0; j < data_length_with_id - last_data_length_with_id; ++j) {
                     data += encoding[j];
                 }
@@ -84,13 +82,9 @@ TxFrameResult frame_generator_TX(int data_length,
             }
 
             CVec data_symbols = to_symbols(data);
-
-            // Prepend header
             CVec frame_with_header;
             frame_with_header.insert(frame_with_header.end(), header.begin(), header.end());
             frame_with_header.insert(frame_with_header.end(), data_symbols.begin(), data_symbols.end());
-
-            // Append to symbol_frames
             symbol_frames.insert(symbol_frames.end(), frame_with_header.begin(), frame_with_header.end());
         }
     } else if (static_cast<int>(msg.size()) == data_length) {
@@ -108,14 +102,12 @@ TxFrameResult frame_generator_TX(int data_length,
         symbol_frames.insert(symbol_frames.end(), header.begin(), header.end());
         symbol_frames.insert(symbol_frames.end(), data_symbols.begin(), data_symbols.end());
     } else {
-        // Message shorter than data_length
         single_frame_length = static_cast<int>(header.size()) +
                               id_len_in_symbols +
                               data_length * symbols_per_char +
                               id_len_in_symbols;
 
         std::string data = hex_id(0) + msg + hex_id(0);
-        // Pad
         for (int i = 0; i < data_length - remainder; ++i) {
             data += encoding[i];
         }

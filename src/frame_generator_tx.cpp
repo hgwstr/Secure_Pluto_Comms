@@ -42,9 +42,15 @@ TxFrameResult frame_generator_TX(int data_length,
     // Преобразование строки в символы
     auto to_symbols = [&](const std::string& data) -> CVec {
         std::vector<int> pam = letters_to_pam(data);
-        if (mod_type == "QAM4_2") {                     // ИСПРАВЛЕНО: было "4QAM"
+        if (info) {
+            std::cout << "[TX] Original data part: " << data << std::endl;
+            std::cout << "[TX] PAM symbols (" << pam.size() << "): ";
+            for (int s : pam) std::cout << s << " ";
+            std::cout << std::endl;
+        }
+        if (mod_type == "QAM4_2") {
             return pam_to_qam4_2(pam);
-        } else if (mod_type == "4QAM") {                // оставлено для совместимости, если понадобится
+        } else if (mod_type == "4QAM") {
             return pam_to_qam(pam);
         } else {
             // Обычная PAM

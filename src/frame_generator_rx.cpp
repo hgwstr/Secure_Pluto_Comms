@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iostream>
 #include <complex>
+static const bool verbose_rx = true;
 
 std::string frame_generator_RX(const CVec& quantized_symbols,
                                const CVec& correlation_indices,
@@ -52,6 +53,12 @@ std::string frame_generator_RX(const CVec& quantized_symbols,
         }
 
         std::string raw_frame_text = decoder.decode(bits_to_decode);
+        if (verbose_rx) {
+            std::cout << "[RX] Coded bits for frame (" << bits_to_decode.size() << "): ";
+            for (int b : bits_to_decode) std::cout << b;
+            std::cout << std::endl;
+            std::cout << "[RX] Decoded frame text: " << raw_frame_text << std::endl;
+        }
         full_decoded_msg += raw_frame_text;
     }
 
